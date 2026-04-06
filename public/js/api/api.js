@@ -115,12 +115,17 @@ const ApiService = {
   },
 
   async getStats(userId) {
-    const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId);
-    if (Array.isArray(result.data) && result.data.length > 0) {
-      const stats = result.data[0];
-      if (!stats.achievements) stats.achievements = [];
-      return stats;
+    try {
+      const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId + '&limit=1');
+      if (Array.isArray(result.data) && result.data.length > 0) {
+        const stats = result.data[0];
+        if (!stats.achievements) stats.achievements = [];
+        return stats;
+      }
+    } catch (e) {
+      console.error('Failed to get stats:', e);
     }
+
     return null;
   },
 
@@ -142,26 +147,49 @@ const ApiService = {
   },
 
   async deleteStats(userId) {
-    await this.request(API_ENDPOINTS.UPDATE_STATS + '?user_id=eq.' + userId, {
-      method: 'DELETE'
-    });
+    try {
+      await this.request(API_ENDPOINTS.UPDATE_STATS + '?user_id=eq.' + userId, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.error('Failed to delete stats (user_id filter):', e);
+      try {
+        await this.request(API_ENDPOINTS.UPDATE_STATS, {
+          method: 'DELETE'
+        });
+      } catch (e2) {
+        console.error('Failed to delete all stats:', e2);
+      }
+    }
   },
 
   async ensureStats(userId) {
-    await this.deleteStats(userId);
-    await this.request(API_ENDPOINTS.UPDATE_STATS, {
-      method: 'POST',
-      body: {
-        user_id: userId,
-        total_completed: 0,
-        today_completed: 0,
-        today_date: null,
-        current_streak: 0,
-        last_completed_date: null,
-        achievements: []
+    try {
+      await this.deleteStats(userId);
+    } catch (e) {
+      console.error('Failed to delete stats, trying to insert anyway:', e);
+    }
+
+    try {
+      const result = await this.request(API_ENDPOINTS.UPDATE_STATS, {
+        method: 'POST',
+        body: {
+          user_id: userId,
+          total_completed: 0,
+          today_completed: 0,
+          today_date: null,
+          current_streak: 0,
+          last_completed_date: null,
+          achievements: []
+        }
+      });
+      if (result.status === 409) {
+        console.log('Stats already exist, skipping creation');
       }
-    });
-  }
+    } catch (e) {
+      console.error('Failed to create stats:', e);
+    }
+  },
 };
 
 window.ApiService = ApiService;
