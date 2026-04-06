@@ -183,13 +183,20 @@ const ApiService = {
           achievements: []
         }
       });
+
       if (result.status === 409) {
-        console.log('Stats already exist, skipping creation');
+        console.log('Stats already exist, checking current data');
+        const currentStats = await this.getStats(userId);
+        if (currentStats && currentStats.id) {
+          console.log('Found existing stats:', currentStats);
+        } else {
+          console.log('Failed to get existing stats');
+        }
       }
     } catch (e) {
       console.error('Failed to create stats:', e);
     }
-  },
+  },,
 };
 
 window.ApiService = ApiService;
