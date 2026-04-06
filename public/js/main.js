@@ -123,7 +123,7 @@ async function handleAuth(mode) {
     document.getElementById('mainView').style.display = 'block';
     document.getElementById('loginPrompt').style.display = 'none';
     updateUserDisplay();
-    await ApiService.ensureStats(currentUser.id);
+    await ApiService.createStatsIfNotExist(currentUser.id);
     await loadData();
     render();
   }
@@ -180,8 +180,6 @@ async function init() {
 
 async function loadData() {
   if (!currentUser) return;
-  
-  await ApiService.ensureStats(currentUser.id);
   
   const [todosData, statsData] = await Promise.all([
     ApiService.getTodos(currentUser.id),

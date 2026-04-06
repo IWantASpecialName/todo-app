@@ -116,7 +116,7 @@ const ApiService = {
 
   async getStats(userId) {
     try {
-      const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId + '&limit=1');
+      const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId);
       if (Array.isArray(result.data) && result.data.length > 0) {
         const stats = result.data[0];
         if (!stats.achievements) stats.achievements = [];
@@ -125,78 +125,42 @@ const ApiService = {
     } catch (e) {
       console.error('Failed to get stats:', e);
     }
-
     return null;
   },
 
   async updateStats(userId, updates) {
     const currentStats = await this.getStats(userId);
     if (currentStats && currentStats.id) {
-      const result = await this.request(`${API_ENDPOINTS.UPDATE_STATS}?id=eq.${currentStats.id}`, {
+      return await this.request(`${API_ENDPOINTS.UPDATE_STATS}?id=eq.${currentStats.id}`, {
         method: 'PATCH',
         body: updates
       });
-      return result.data;
     } else {
-      const result = await this.request(API_ENDPOINTS.UPDATE_STATS, {
+      return await this.request(API_ENDPOINTS.UPDATE_STATS, {
         method: 'POST',
         body: { ...updates, user_id: userId }
       });
-      return result.data;
     }
   },
 
-  async deleteStats(userId) {
-    try {
-      await this.request(API_ENDPOINTS.UPDATE_STATS + '?user_id=eq.' + userId, {
-        method: 'DELETE'
-      });
-    } catch (e) {
-      console.error('Failed to delete stats (user_id filter):', e);
-      try {
-        await this.request(API_ENDPOINTS.UPDATE_STATS, {
-          method: 'DELETE'
-        });
-      } catch (e2) {
-        console.error('Failed to delete all stats:', e2);
+  async createStatsIfNotExist(userId) {
+    const existing = await this.getStats(userId);
+    if (existing && existing.id) {
+      return existing;
+    }
+    return await this.request(API_ENDPOINTS.UPDATE_STATS, {
+      method: 'POST',
+      body: {
+        user_id: userId,
+        total_completed: 0,
+        today_completed: 0,
+        today_date: null,
+        current_streak: 0,
+        last_completed_date: null,
+        achievements: []
       }
-    }
-  },
-
-  async ensureStats(userId) {
-    try {
-      await this.deleteStats(userId);
-    } catch (e) {
-      console.error('Failed to delete stats, trying to insert anyway:', e);
-    }
-
-    try {
-      const result = await this.request(API_ENDPOINTS.UPDATE_STATS, {
-        method: 'POST',
-        body: {
-          user_id: userId,
-          total_completed: 0,
-          today_completed: 0,
-          today_date: null,
-          current_streak: 0,
-          last_completed_date: null,
-          achievements: []
-        }
-      });
-
-      if (result.status === 409) {
-        console.log('Stats already exist, checking current data');
-        const currentStats = await this.getStats(userId);
-        if (currentStats && currentStats.id) {
-          console.log('Found existing stats:', currentStats);
-        } else {
-          console.log('Failed to get existing stats');
-        }
-      }
-    } catch (e) {
-      console.error('Failed to create stats:', e);
-    }
-  },,
+    });
+  }
 };
 
 window.ApiService = ApiService;
