@@ -9,6 +9,32 @@ let stats = {
   achievements: []
 };
 
+function getStatsKey() {
+  return currentUser ? `todo_stats_${currentUser.id}` : null;
+}
+
+function loadLocalStats() {
+  const key = getStatsKey();
+  if (!key) return;
+  
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      stats = { ...stats, ...parsed };
+    } catch (e) {
+      console.error('Failed to load stats from localStorage:', e);
+    }
+  }
+}
+
+function saveLocalStats() {
+  const key = getStatsKey();
+  if (!key) return;
+  
+  localStorage.setItem(key, JSON.stringify(stats));
+}
+
 const ACHIEVEMENTS = [
   { id: 'first', name: '初露锋芒', desc: '完成第一个任务', icon: '🌟', require: 1 },
   { id: 'ten', name: '小试牛刀', desc: '累计完成10个任务', icon: '🎯', require: 10 },
@@ -123,7 +149,6 @@ async function handleAuth(mode) {
     document.getElementById('mainView').style.display = 'block';
     document.getElementById('loginPrompt').style.display = 'none';
     updateUserDisplay();
-    await ApiService.createStatsIfNotExist(currentUser.id);
     await loadData();
     render();
   }
@@ -181,20 +206,10 @@ async function init() {
 async function loadData() {
   if (!currentUser) return;
   
-  const [todosData, statsData] = await Promise.all([
-    ApiService.getTodos(currentUser.id),
-    ApiService.getStats(currentUser.id)
-  ]);
-  
+  const todosData = await ApiService.getTodos(currentUser.id);
   todos = todosData || [];
-  stats = statsData || {
-    total_completed: 0,
-    today_completed: 0,
-    today_date: null,
-    current_streak: 0,
-    last_completed_date: null,
-    achievements: []
-  };
+  
+  loadLocalStats();
   
   if (!stats.achievements) stats.achievements = [];
   
@@ -255,17 +270,9 @@ function checkAchievements() {
   return newAchievements;
 }
 
-async function saveStats() {
+function saveStats() {
   if (!currentUser) return;
-  
-  await ApiService.updateStats(currentUser.id, {
-    total_completed: stats.total_completed || 0,
-    today_completed: stats.today_completed || 0,
-    today_date: stats.today_date,
-    current_streak: stats.current_streak || 0,
-    last_completed_date: stats.last_completed_date,
-    achievements: stats.achievements || []
-  });
+  saveLocalStats();
 }
 
 function showReward(type, data) {
