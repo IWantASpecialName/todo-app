@@ -124,7 +124,7 @@ const ApiService = {
         body: { ...updates, user_id: userId }
       });
     }
-  },
+  }
 
   async ensureStats(userId) {
     const currentStats = await this.getStats(userId);
