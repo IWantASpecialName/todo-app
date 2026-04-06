@@ -26,14 +26,59 @@ const ApiService = {
     }
   },
 
-  async getTodos() {
-    return await this.request(API_ENDPOINTS.GET_TODOS);
+  async register(username, password) {
+    const checkResult = await this.request(API_ENDPOINTS.GET_USER_BY_USERNAME + username);
+    if (Array.isArray(checkResult) && checkResult.length > 0) {
+      return { error: '用户名已存在' };
+    }
+    
+    const passwordHash = this.hashPassword(password);
+    
+    const result = await this.request(API_ENDPOINTS.INSERT_USER, {
+      method: 'POST',
+      body: { username, password_hash: passwordHash }
+    });
+    
+    if (result && result.length > 0) {
+      return { success: true, user: result[0] };
+    }
+    return { error: '注册失败' };
   },
 
-  async addTodo(text) {
+  async login(username, password) {
+    const result = await this.request(API_ENDPOINTS.GET_USER_BY_USERNAME + username);
+    if (!Array.isArray(result) || result.length === 0) {
+      return { error: '用户名不存在' };
+    }
+    
+    const user = result[0];
+    const passwordHash = this.hashPassword(password);
+    
+    if (user.password_hash !== passwordHash) {
+      return { error: '密码错误' };
+    }
+    
+    return { success: true, user };
+  },
+
+  hashPassword(password) {
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) {
+      const char = password.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return 'hash_' + Math.abs(hash).toString(16) + '_' + password.length;
+  },
+
+  async getTodos(userId) {
+    return await this.request(API_ENDPOINTS.GET_TODOS + '&user_id=eq.' + userId);
+  },
+
+  async addTodo(text, userId) {
     return await this.request(API_ENDPOINTS.ADD_TODO, {
       method: 'POST',
-      body: { text, done: false }
+      body: { text, done: false, user_id: userId }
     });
   },
 
@@ -50,19 +95,20 @@ const ApiService = {
     });
   },
 
-  async deleteCompleted() {
-    return await this.request(`${API_ENDPOINTS.DELETE_TODO}?done=eq.true`, {
+  async deleteCompleted(userId) {
+    return await this.request(`${API_ENDPOINTS.DELETE_TODO}?done=eq.true&user_id=eq.${userId}`, {
       method: 'DELETE'
     });
   },
 
-  async getStats() {
-    const result = await this.request(API_ENDPOINTS.GET_STATS);
+  async getStats(userId) {
+    const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId);
     if (Array.isArray(result) && result.length > 0) {
       return result[0];
     }
     return {
-      id: 'default',
+      id: null,
+      user_id: userId,
       total_completed: 0,
       today_completed: 0,
       today_date: null,
@@ -72,11 +118,19 @@ const ApiService = {
     };
   },
 
-  async updateStats(id, updates) {
-    return await this.request(`${API_ENDPOINTS.UPDATE_STATS}?id=eq.${id}`, {
-      method: 'PATCH',
-      body: updates
-    });
+  async updateStats(userId, updates) {
+    const currentStats = await this.getStats(userId);
+    if (currentStats && currentStats.id) {
+      return await this.request(`${API_ENDPOINTS.UPDATE_STATS}?id=eq.${currentStats.id}`, {
+        method: 'PATCH',
+        body: updates
+      });
+    } else {
+      return await this.request(API_ENDPOINTS.UPDATE_STATS, {
+        method: 'POST',
+        body: { ...updates, user_id: userId }
+      });
+    }
   }
 };
 

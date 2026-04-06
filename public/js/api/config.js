@@ -8,8 +8,10 @@ const API_ENDPOINTS = {
   ADD_TODO: '/rest/v1/todos',
   UPDATE_TODO: '/rest/v1/todos',
   DELETE_TODO: '/rest/v1/todos',
-  GET_STATS: '/rest/v1/stats?select=*&id=eq.default',
-  UPDATE_STATS: '/rest/v1/stats'
+  GET_STATS: '/rest/v1/stats?select=*',
+  UPDATE_STATS: '/rest/v1/stats',
+  GET_USER_BY_USERNAME: '/rest/v1/users?username=eq.',
+  INSERT_USER: '/rest/v1/users'
 };
 
 const HEADERS = {

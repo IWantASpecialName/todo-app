@@ -1,3 +1,4 @@
+let currentUser = null;
 let todos = [];
 let stats = {
   total_completed: 0,
@@ -20,15 +21,168 @@ const ACHIEVEMENTS = [
 
 const SPECIAL_MILESTONES = [10, 25, 50, 100];
 
+function validateUsername(username) {
+  if (username.length < 3 || username.length > 14) {
+    return '用户名长度必须为3-14字节';
+  }
+  if (!/^[a-zA-Z0-9]+$/.test(username)) {
+    return '用户名只能包含字母和数字';
+  }
+  return null;
+}
+
+function validatePassword(password) {
+  if (password.length < 6) {
+    return '密码长度至少6个字符';
+  }
+  return null;
+}
+
+function showAuthModal(mode) {
+  const modal = document.getElementById('authModal');
+  const title = document.getElementById('authTitle');
+  const form = document.getElementById('authForm');
+  const switchLink = document.getElementById('authSwitch');
+  
+  if (mode === 'login') {
+    title.textContent = '登录';
+    form.innerHTML = `
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="authUsername" placeholder="请输入用户名">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="authPassword" placeholder="请输入密码">
+      </div>
+      <div class="form-error" id="authError"></div>
+      <button class="btn-primary" onclick="handleAuth('login')">登录</button>
+    `;
+    switchLink.innerHTML = '还没有账号？<a href="#" onclick="showAuthModal(\'register\'); return false;">注册</a>';
+  } else {
+    title.textContent = '注册';
+    form.innerHTML = `
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="authUsername" placeholder="3-14位字母或数字">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="authPassword" placeholder="至少6个字符">
+      </div>
+      <div class="form-error" id="authError"></div>
+      <button class="btn-primary" onclick="handleAuth('register')">注册</button>
+    `;
+    switchLink.innerHTML = '已有账号？<a href="#" onclick="showAuthModal(\'login\'); return false;">登录</a>';
+  }
+  
+  modal.classList.add('show');
+}
+
+function closeAuthModal() {
+  document.getElementById('authModal').classList.remove('show');
+}
+
+async function handleAuth(mode) {
+  const username = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errorEl = document.getElementById('authError');
+  
+  errorEl.textContent = '';
+  
+  if (mode === 'register') {
+    const validation = validateUsername(username);
+    if (validation) {
+      errorEl.textContent = validation;
+      return;
+    }
+  }
+  
+  const passValidation = validatePassword(password);
+  if (passValidation) {
+    errorEl.textContent = passValidation;
+    return;
+  }
+  
+  let result;
+  if (mode === 'login') {
+    result = await ApiService.login(username, password);
+  } else {
+    result = await ApiService.register(username, password);
+  }
+  
+  if (result.error) {
+    errorEl.textContent = result.error;
+    return;
+  }
+  
+  if (result.success && result.user) {
+    currentUser = result.user;
+    localStorage.setItem('todo_user', JSON.stringify(currentUser));
+    closeAuthModal();
+    document.getElementById('mainView').style.display = 'block';
+    document.getElementById('loginPrompt').style.display = 'none';
+    updateUserDisplay();
+    await loadData();
+    render();
+  }
+}
+
+function logout() {
+  currentUser = null;
+  localStorage.removeItem('todo_user');
+  todos = [];
+  stats = {
+    total_completed: 0,
+    today_completed: 0,
+    today_date: null,
+    current_streak: 0,
+    last_completed_date: null,
+    achievements: []
+  };
+  updateUserDisplay();
+  render();
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('loginPrompt').style.display = 'flex';
+  showAuthModal('login');
+}
+
+function updateUserDisplay() {
+  const userDisplay = document.getElementById('userDisplay');
+  const logoutBtn = document.getElementById('logoutBtn');
+  
+  if (currentUser) {
+    userDisplay.textContent = currentUser.username;
+    logoutBtn.style.display = 'inline-block';
+  } else {
+    userDisplay.textContent = '';
+    logoutBtn.style.display = 'none';
+  }
+}
+
 async function init() {
-  await loadData();
+  const savedUser = localStorage.getItem('todo_user');
+  if (savedUser) {
+    try {
+      currentUser = JSON.parse(savedUser);
+      updateUserDisplay();
+      document.getElementById('mainView').style.display = 'block';
+      document.getElementById('loginPrompt').style.display = 'none';
+      await loadData();
+    } catch (e) {
+      currentUser = null;
+      localStorage.removeItem('todo_user');
+    }
+  }
   render();
 }
 
 async function loadData() {
+  if (!currentUser) return;
+  
   const [todosData, statsData] = await Promise.all([
-    ApiService.getTodos(),
-    ApiService.getStats()
+    ApiService.getTodos(currentUser.id),
+    ApiService.getStats(currentUser.id)
   ]);
   
   todos = todosData || [];
@@ -78,7 +232,7 @@ function checkAchievements() {
   const newAchievements = [];
   
   ACHIEVEMENTS.forEach(ach => {
-    if (!stats.achievements.includes(ach.id)) {
+    if (!stats.achievements || !stats.achievements.includes(ach.id)) {
       let unlocked = false;
       
       if (ach.id.startsWith('streak')) {
@@ -88,6 +242,7 @@ function checkAchievements() {
       }
       
       if (unlocked) {
+        if (!stats.achievements) stats.achievements = [];
         stats.achievements.push(ach.id);
         newAchievements.push(ach);
       }
@@ -98,7 +253,9 @@ function checkAchievements() {
 }
 
 async function saveStats() {
-  await ApiService.updateStats('default', {
+  if (!currentUser) return;
+  
+  await ApiService.updateStats(currentUser.id, {
     total_completed: stats.total_completed || 0,
     today_completed: stats.today_completed || 0,
     today_date: stats.today_date,
@@ -192,6 +349,8 @@ document.addEventListener('click', (e) => {
 });
 
 function render() {
+  if (!currentUser) return;
+  
   const list = document.getElementById('todoList');
   const pending = todos.filter(t => !t.done).length;
   const completed = todos.filter(t => t.done).length;
@@ -261,11 +420,13 @@ function escapeHtml(text) {
 }
 
 async function addTodo() {
+  if (!currentUser) return;
+  
   const input = document.getElementById('todoInput');
   const text = input.value.trim();
   if (!text) return;
   
-  const result = await ApiService.addTodo(text);
+  const result = await ApiService.addTodo(text, currentUser.id);
   if (result && result.length > 0) {
     todos.unshift(result[0]);
     input.value = '';
@@ -278,6 +439,8 @@ async function addTodo() {
 }
 
 async function toggle(id) {
+  if (!currentUser) return;
+  
   const todo = todos.find(t => t.id === id);
   if (!todo) return;
   
@@ -320,6 +483,8 @@ async function toggle(id) {
 }
 
 async function del(id) {
+  if (!currentUser) return;
+  
   const todo = todos.find(t => t.id === id);
   await ApiService.deleteTodo(id);
   
@@ -333,7 +498,9 @@ async function del(id) {
 }
 
 async function clearCompleted() {
-  await ApiService.deleteCompleted();
+  if (!currentUser) return;
+  
+  await ApiService.deleteCompleted(currentUser.id);
   
   const completedCount = todos.filter(t => t.done).length;
   stats.total_completed = Math.max(0, (stats.total_completed || 0) - completedCount);
@@ -350,6 +517,10 @@ window.clearCompleted = clearCompleted;
 window.showAchievements = showAchievements;
 window.closeAchievements = closeAchievements;
 window.showAchievementDetail = showAchievementDetail;
+window.showAuthModal = showAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.handleAuth = handleAuth;
+window.logout = logout;
 
 document.getElementById('todoInput').addEventListener('keypress', e => {
   if (e.key === 'Enter') addTodo();
