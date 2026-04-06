@@ -141,25 +141,26 @@ const ApiService = {
     }
   },
 
+  async deleteStats(userId) {
+    await this.request(API_ENDPOINTS.UPDATE_STATS + '?user_id=eq.' + userId, {
+      method: 'DELETE'
+    });
+  },
+
   async ensureStats(userId) {
-    const currentStats = await this.getStats(userId);
-    if (!currentStats || !currentStats.id) {
-      await this.request(API_ENDPOINTS.UPDATE_STATS, {
-        method: 'POST',
-        headers: {
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: {
-          user_id: userId,
-          total_completed: 0,
-          today_completed: 0,
-          today_date: null,
-          current_streak: 0,
-          last_completed_date: null,
-          achievements: []
-        }
-      });
-    }
+    await this.deleteStats(userId);
+    await this.request(API_ENDPOINTS.UPDATE_STATS, {
+      method: 'POST',
+      body: {
+        user_id: userId,
+        total_completed: 0,
+        today_completed: 0,
+        today_date: null,
+        current_streak: 0,
+        last_completed_date: null,
+        achievements: []
+      }
+    });
   }
 };
 
