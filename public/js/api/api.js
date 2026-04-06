@@ -18,7 +18,15 @@ const ApiService = {
     
     try {
       const response = await fetch(fullUrl, config);
-      const data = await response.json();
+      const text = await response.text();
+      let data = [];
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          // Ignore JSON parse errors for empty/invalid responses
+        }
+      }
       return { data, status: response.status };
     } catch (error) {
       console.error('API Error:', error);
