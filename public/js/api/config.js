@@ -18,3 +18,7 @@ const HEADERS = {
   'Content-Type': 'application/json',
   'Prefer': 'return=representation'
 };
+
+window.CONFIG = CONFIG;
+window.API_ENDPOINTS = API_ENDPOINTS;
+window.HEADERS = HEADERS;
