@@ -145,9 +145,14 @@ const ApiService = {
 
   async createStatsIfNotExist(userId) {
     const existing = await this.getStats(userId);
-    if (existing && existing.id) {
+    if (existing && existing.id && existing.id !== 'default') {
       return existing;
     }
+    
+    await this.request(API_ENDPOINTS.UPDATE_STATS + '?user_id=eq.' + userId, {
+      method: 'DELETE'
+    });
+    
     return await this.request(API_ENDPOINTS.UPDATE_STATS, {
       method: 'POST',
       body: {
