@@ -104,18 +104,11 @@ const ApiService = {
   async getStats(userId) {
     const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId);
     if (Array.isArray(result) && result.length > 0) {
-      return result[0];
+      const stats = result[0];
+      if (!stats.achievements) stats.achievements = [];
+      return stats;
     }
-    return {
-      id: null,
-      user_id: userId,
-      total_completed: 0,
-      today_completed: 0,
-      today_date: null,
-      current_streak: 0,
-      last_completed_date: null,
-      achievements: []
-    };
+    return null;
   },
 
   async updateStats(userId, updates) {
@@ -129,6 +122,24 @@ const ApiService = {
       return await this.request(API_ENDPOINTS.UPDATE_STATS, {
         method: 'POST',
         body: { ...updates, user_id: userId }
+      });
+    }
+  }
+
+  async ensureStats(userId) {
+    const currentStats = await this.getStats(userId);
+    if (!currentStats || !currentStats.id) {
+      await this.request(API_ENDPOINTS.UPDATE_STATS, {
+        method: 'POST',
+        body: {
+          user_id: userId,
+          total_completed: 0,
+          today_completed: 0,
+          today_date: null,
+          current_streak: 0,
+          last_completed_date: null,
+          achievements: []
+        }
       });
     }
   }
