@@ -19,16 +19,16 @@ const ApiService = {
     try {
       const response = await fetch(fullUrl, config);
       const data = await response.json();
-      return data;
+      return { data, status: response.status };
     } catch (error) {
       console.error('API Error:', error);
-      return [];
+      return { data: [], status: 0 };
     }
   },
 
   async register(username, password) {
     const checkResult = await this.request(API_ENDPOINTS.GET_USER_BY_USERNAME + username);
-    if (Array.isArray(checkResult) && checkResult.length > 0) {
+    if (Array.isArray(checkResult.data) && checkResult.data.length > 0) {
       return { error: '用户名已存在' };
     }
     
@@ -39,19 +39,19 @@ const ApiService = {
       body: { username, password_hash: passwordHash }
     });
     
-    if (result && result.length > 0) {
-      return { success: true, user: result[0] };
+    if (result.data && result.data.length > 0) {
+      return { success: true, user: result.data[0] };
     }
     return { error: '注册失败' };
   },
 
   async login(username, password) {
     const result = await this.request(API_ENDPOINTS.GET_USER_BY_USERNAME + username);
-    if (!Array.isArray(result) || result.length === 0) {
+    if (!Array.isArray(result.data) || result.data.length === 0) {
       return { error: '用户名不存在' };
     }
     
-    const user = result[0];
+    const user = result.data[0];
     const passwordHash = this.hashPassword(password);
     
     if (user.password_hash !== passwordHash) {
@@ -72,39 +72,44 @@ const ApiService = {
   },
 
   async getTodos(userId) {
-    return await this.request(API_ENDPOINTS.GET_TODOS + '&user_id=eq.' + userId);
+    const result = await this.request(API_ENDPOINTS.GET_TODOS + '&user_id=eq.' + userId);
+    return result.data || [];
   },
 
   async addTodo(text, userId) {
-    return await this.request(API_ENDPOINTS.ADD_TODO, {
+    const result = await this.request(API_ENDPOINTS.ADD_TODO, {
       method: 'POST',
       body: { text, done: false, user_id: userId }
     });
+    return result.data;
   },
 
   async updateTodo(id, updates) {
-    return await this.request(`${API_ENDPOINTS.UPDATE_TODO}?id=eq.${id}`, {
+    const result = await this.request(`${API_ENDPOINTS.UPDATE_TODO}?id=eq.${id}`, {
       method: 'PATCH',
       body: updates
     });
+    return result.data;
   },
 
   async deleteTodo(id) {
-    return await this.request(`${API_ENDPOINTS.DELETE_TODO}?id=eq.${id}`, {
+    const result = await this.request(`${API_ENDPOINTS.DELETE_TODO}?id=eq.${id}`, {
       method: 'DELETE'
     });
+    return result.data;
   },
 
   async deleteCompleted(userId) {
-    return await this.request(`${API_ENDPOINTS.DELETE_TODO}?done=eq.true&user_id=eq.${userId}`, {
+    const result = await this.request(`${API_ENDPOINTS.DELETE_TODO}?done=eq.true&user_id=eq.${userId}`, {
       method: 'DELETE'
     });
+    return result.data;
   },
 
   async getStats(userId) {
     const result = await this.request(API_ENDPOINTS.GET_STATS + '&user_id=eq.' + userId);
-    if (Array.isArray(result) && result.length > 0) {
-      const stats = result[0];
+    if (Array.isArray(result.data) && result.data.length > 0) {
+      const stats = result.data[0];
       if (!stats.achievements) stats.achievements = [];
       return stats;
     }
@@ -114,15 +119,17 @@ const ApiService = {
   async updateStats(userId, updates) {
     const currentStats = await this.getStats(userId);
     if (currentStats && currentStats.id) {
-      return await this.request(`${API_ENDPOINTS.UPDATE_STATS}?id=eq.${currentStats.id}`, {
+      const result = await this.request(`${API_ENDPOINTS.UPDATE_STATS}?id=eq.${currentStats.id}`, {
         method: 'PATCH',
         body: updates
       });
+      return result.data;
     } else {
-      return await this.request(API_ENDPOINTS.UPDATE_STATS, {
+      const result = await this.request(API_ENDPOINTS.UPDATE_STATS, {
         method: 'POST',
         body: { ...updates, user_id: userId }
       });
+      return result.data;
     }
   },
 
@@ -131,6 +138,9 @@ const ApiService = {
     if (!currentStats || !currentStats.id) {
       await this.request(API_ENDPOINTS.UPDATE_STATS, {
         method: 'POST',
+        headers: {
+          'Prefer': 'resolution=merge-duplicates'
+        },
         body: {
           user_id: userId,
           total_completed: 0,
