@@ -343,6 +343,14 @@ async function clearCompleted() {
   render();
 }
 
+window.addTodo = addTodo;
+window.toggle = toggle;
+window.del = del;
+window.clearCompleted = clearCompleted;
+window.showAchievements = showAchievements;
+window.closeAchievements = closeAchievements;
+window.showAchievementDetail = showAchievementDetail;
+
 document.getElementById('todoInput').addEventListener('keypress', e => {
   if (e.key === 'Enter') addTodo();
 });
